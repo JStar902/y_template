@@ -1,47 +1,64 @@
 use std::io::{self, Write};
-use std::fs;
-use std::path::Path;
+use std::{fs};
+use std::path::{Path};
 use chrono::Local;
 
-// fn get_user() {
+/*
+Purpose: This function creates the folder name by getting the date and project name from the user
+Args: N/A
+Return: folder_name (String)
+*/
+fn get_folder_name() -> String {
+    // Gets date from chrono
+    let date = Local::now().format("%Y-%m-%d").to_string(); // Gets date
 
-//     let today = Local::now();
-
-//     println!("Enter a name: ");
-
-//     let mut input = String::new();
-
-
-// }
-
-fn main() {
-    // Gets the date for Folder name
-    let now = Local::now();
-    let date = now.format("%Y-%m-%d").to_string();
-
+    // Gathers and merges input folder name with date
     print!("Enter folder name: ");
     io::stdout().flush().unwrap();
-
     let mut input = String::new();
     io::stdin().read_line(&mut input).unwrap();
     let input = input.trim().to_string();
-
-    // Sets the base directory for youtube (Later want this to scan for the folder named "youtube")
     let folder_name = date + "_" + &input;
-    let base_dir = "C:/Youtube";
-    let main_folder_path = Path::new(base_dir).join(&folder_name);
+    return folder_name;
+}
 
-    println!("Folder name: {}", folder_name);
-    println!("Folder location: {}", main_folder_path.display());
+/*
+Purpose: Get the desired base file path for the new youtube project folder to be placed
+Args: N/A
+Return: base_dir (String)
+*/
+fn get_base_dir() -> String {
+    return "C:/Youtube".to_string();
+}
 
-    // Creates the folder path and internal folders
-    fs::create_dir(&main_folder_path).expect("Failed to create main folder");
-    let subfolders = ["A-roll", "Save", "Photoshop"];
+/*
+Purpose: Creates a new folder in your desired folder with 3 subfolders for dividing up your work flow.
+Args: base_dir (String) - file location for desired folder
+      folder_name (String) - inputted date_name string for folder name
+Return: Error message if failed
+*/
+fn create_directory(base_dir: &str, folder_name: &str) -> io::Result<()> {
+    let main_folder_path = Path::new(base_dir).join(folder_name);
+    if main_folder_path.exists() {
+        return Err(io::Error::new(io::ErrorKind::AlreadyExists, "Folder already exists"));
+    }else {
+        fs::create_dir(&main_folder_path)?;
+        let subfolders = ["A-roll", "B-roll", "Save", "Photoshop"];
 
-    for folder in subfolders {
-        let sub_path = main_folder_path.join(folder);
-        fs::create_dir(&sub_path).expect("Failed to crate subfolder");
+        for folder in subfolders {
+            fs::create_dir(main_folder_path.join(folder))?;
+        }
+        Ok(())
     }
 
-    println!("Folder structure created successfully");
+}
+fn main() {
+
+    // Sets the base directory for youtube (Later want this to scan for the folder named "youtube")
+    let folder_name = get_folder_name();
+    let base_dir = get_base_dir();
+    match create_directory(&base_dir, &folder_name) {
+        Ok(_) => println!("Folder structure created successfully"),
+        Err(e) => eprintln!("Failed to create folders: {}", e),
+    }
 }
