@@ -69,23 +69,34 @@ struct MyApp {
     project_path: Option<PathBuf>,
     new_folder_path: PathBuf,
 
-    is_scanning: bool,
-    scan_result: Arc<Mutex<Option<PathBuf>>>,
+    scan_status: Arc<Mutex<ScanStatus>>,
     pending_create: bool,
+}
+
+impl Default for ScanStatus {
+    fn default() -> Self {
+        ScanStatus::Idle
+    }
 }
 
 impl MyApp {
     // Purpose: Scans for Youtube project folder
     fn start_scan(&mut self) { 
-        self.is_scanning = true;
         self.status = format!("Searching for {} folder",self.search_folder_name);
 
-        let result = Arc::clone(&self.scan_result);
+        let scan_status = Arc::clone(&self.scan_status);
         let target = self.search_folder_name.clone();
+
+        *scan_status.lock().unwrap() = ScanStatus::Scanning;
 
         std::thread::spawn(move || {
             let found = get_base_dir(Path::new("C:/"), &target);
-            *result.lock().unwrap() = found;
+            
+            let mut status = scan_status.lock().unwrap();
+            *status = match found {
+                Some(path) => ScanStatus::Found(path),
+                None => ScanStatus::NotFound,
+            }
         });
     }
 
@@ -142,26 +153,46 @@ impl eframe::App for MyApp {
             }
         }
 
-
         if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
 
-        if self.is_scanning {
-            let scan_result = {
-                self.scan_result.lock().unwrap().take()
-            };
-            
-            if let Some(found) = scan_result {
-                self.project_path = Some(found);
-                self.is_scanning = false;
-                self.status = "Project folder found".to_string();
+        let scan_action = {
+            let scan_status = self.scan_status.lock().unwrap();
 
-                if self.pending_create {
-                    self.finish_create_project();
+            match &*scan_status {
+                ScanStatus::Found(path) => Some(ScanStatus::Found(path.clone())),
+                ScanStatus::NotFound => Some(ScanStatus::NotFound),
+                _ => None,
+            }
+        };
+        
+        if let Some(action) = scan_action {
+            match action {
+                ScanStatus::Found(path) => {
+                    self.project_path = Some(path);
+                    self.status = "Project folder found".to_string();
+                    *self.scan_status.lock().unwrap() = ScanStatus::Idle;
+
+                    if self.pending_create {
+                        self.finish_create_project();
+                    }
                 }
+
+                ScanStatus::NotFound => {
+                    self.status = format!(
+                        "Folder '{}' not found in C:/",
+                        self.search_folder_name
+                    );
+                    self.pending_create = false;
+                    *self.scan_status.lock().unwrap() = ScanStatus::Idle;
+                }
+
+                _ => {}
             }
         }
+
+
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.vertical_centered(|ui| { ui.heading("Youtube Folder Creator"); ui.add_space(10.0);});
@@ -209,10 +240,10 @@ impl eframe::App for MyApp {
 
             ui.add_space(15.0);
 
-            if self.is_scanning {
+            if matches!(*self.scan_status.lock().unwrap(), ScanStatus::Scanning) {
                 ui.horizontal_centered(|ui| {
                     ui.spinner();
-                    ui.label("Scanning for project folder");
+                    ui.label("Scanning for project folder...");
                 });
             }
 
