@@ -7,6 +7,12 @@ use std::sync::{Arc, Mutex}; // Multitasking crate
 use chrono::Local; // Gets local time information from computer
 use eframe::egui; // Allows for GUI interface
 
+enum ScanStatus {
+    Idle,
+    Scanning,
+    Found(PathBuf),
+    NotFound,
+}
 /*
 Purpose: Scans for desired base file path for the new project folder to be placed
 Args: N/A
@@ -125,9 +131,17 @@ impl MyApp {
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        if ctx.input(|i| i.key_pressed(egui::Key::Enter)) {
-            self.create_project();
+
+        if self.project_path.is_none(){
+            if ctx.input(|i| i.key_pressed(egui::Key::Enter)) {
+                self.start_scan();
+            }
+        } else {
+            if ctx.input(|i| i.key_pressed(egui::Key::Enter)) {
+                self.create_project();
+            }
         }
+
 
         if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -190,7 +204,7 @@ impl eframe::App for MyApp {
                 if ui.button("Exit").clicked() {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
-                
+
             });       
 
             ui.add_space(15.0);
