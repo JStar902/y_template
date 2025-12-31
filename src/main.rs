@@ -12,8 +12,8 @@ Purpose: Scans for desired base file path for the new project folder to be place
 Args: N/A
 Return: base_dir (Path/None)
 */
-fn get_base_dir(start: &Path) -> Option<PathBuf> {
-    let entries = fs::read_dir(start).ok()?;
+fn get_base_dir(start: &Path, target_path: &str) -> Option<PathBuf> {
+    let entries = fs::read_dir(start).ok()?; 
 
     for entry in entries {
         let entry = entry.ok()?;
@@ -21,7 +21,10 @@ fn get_base_dir(start: &Path) -> Option<PathBuf> {
 
         if path.is_dir() {
             if let Some(name) = path.file_name() {
-                if name.to_string_lossy().eq_ignore_ascii_case("youtube") {
+                // If the selected folder is named youtube (Not case sensitive) it is chosen as the main project folder
+                // I WANT TO MAKE THIS BETTER BY TYPING IN FOLDER NAME
+
+                if name.to_string_lossy().eq_ignore_ascii_case(target_path) {
                     return Some(path);
                 }
             }
@@ -53,11 +56,12 @@ fn create_directory(base_dir: &Path, folder_name: &str) -> io::Result<PathBuf> {
 
 #[derive(Default)]
 struct MyApp {
+    search_folder_name: String,
     folder_name: String,
     status: String,
 
-    youtube_path: Option<PathBuf>,
-    string_youtube_path: String,
+    project_path: Option<PathBuf>,
+    new_folder_path: PathBuf,
 
     is_scanning: bool,
     scan_result: Arc<Mutex<Option<PathBuf>>>,
@@ -68,12 +72,13 @@ impl MyApp {
     // Purpose: Scans for Youtube project folder
     fn start_scan(&mut self) { 
         self.is_scanning = true;
-        self.status = "Searching for project folder".to_string();
+        self.status = format!("Searching for {} folder",self.search_folder_name);
 
         let result = Arc::clone(&self.scan_result);
+        let target = self.search_folder_name.clone();
 
         std::thread::spawn(move || {
-            let found = get_base_dir(Path::new("C:/"));
+            let found = get_base_dir(Path::new("C:/"), &target);
             *result.lock().unwrap() = found;
         });
     }
@@ -85,7 +90,7 @@ impl MyApp {
             return;
         }
 
-        if self.youtube_path.is_none() {
+        if self.project_path.is_none() {
             self.pending_create = true;
             self.start_scan();
             return;
@@ -97,15 +102,15 @@ impl MyApp {
     // Purpose: Creates new project folder
     fn finish_create_project(&mut self) {
 
-        let base_dir = self.youtube_path.as_ref().unwrap().clone();
+        let base_dir = self.project_path.as_ref().unwrap().clone();
         let date = Local::now().format("%Y-%m-%d");
         let final_name = format!("{}_{}", date, self.folder_name.trim());
 
         match create_directory(&base_dir, &final_name) {
             Ok(created_path) =>{
                 self.status = "Folder created successfully".to_string();
+                self.new_folder_path = created_path;
                 self.pending_create = false;
-                self.string_youtube_path = created_path.to_string_lossy().to_string();
 
                 //let _ = Command::new("explorer").arg("/select").arg(created_path.to_string_lossy().as_ref()).spawn();
                 // let _ = Command::new(r"C:\Program Files\Adobe\Adobe Premiere Pro.exe").spawn();
@@ -134,7 +139,7 @@ impl eframe::App for MyApp {
             };
             
             if let Some(found) = scan_result {
-                self.youtube_path = Some(found);
+                self.project_path = Some(found);
                 self.is_scanning = false;
                 self.status = "Project folder found".to_string();
 
@@ -148,19 +153,44 @@ impl eframe::App for MyApp {
             ui.vertical_centered(|ui| { ui.heading("Youtube Folder Creator"); ui.add_space(10.0);});
 
             ui.vertical_centered(|ui| {
-                ui.label("Project name:");
 
-                ui.add(egui::TextEdit::singleline(&mut self.folder_name).hint_text("Enter project name (no date needed)"));
+                if self.project_path.is_none() {
+                    ui.label("Base folder name:");
 
-                ui.add_space(10.0);
+                    ui.add(egui::TextEdit::singleline(&mut self.search_folder_name).hint_text("Enter base folder name"));
 
-                if ui.button("Create Folder").clicked() {
-                    self.create_project();
+                    ui.add_space(10.0);
+
+                    if ui.button("Search for Folder").clicked() {
+                        if self.search_folder_name.trim().is_empty() {
+                            self.status = "Search folder name cannot be empty".to_string();
+                        }else{
+                            self.start_scan();
+                        }
+                    }
+                } else {
+                    ui.label("Project name:");
+
+                    ui.add(egui::TextEdit::singleline(&mut self.folder_name).hint_text("Enter project name (no date needed)"));
+
+                    ui.add_space(10.0);
+
+                    if ui.button("Create Folder").clicked() {
+                        self.create_project();
+                    }
+
+                    if ui.button("Reset Project Folder").clicked() {
+                        self.new_folder_path = PathBuf::new();
+                        self.project_path = None;
+                        self.status = "Project folder reset".to_string();
+                    }
+
                 }
 
                 if ui.button("Exit").clicked() {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                } 
+                }
+                
             });       
 
             ui.add_space(15.0);
@@ -177,7 +207,13 @@ impl eframe::App for MyApp {
             if !self.status.is_empty() {
                ui.vertical_centered(|ui|{
                     ui.label(&self.status);
-                    ui.label(&self.string_youtube_path);
+               });
+            }
+
+            if !self.new_folder_path.to_string_lossy().to_string().is_empty() {
+               ui.vertical_centered(|ui|{
+                    ui.label(self.new_folder_path.to_string_lossy().to_string());
+                    ctx.copy_text(self.new_folder_path.to_string_lossy().to_string());
                });
             }
         });
