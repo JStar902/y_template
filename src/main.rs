@@ -2,7 +2,7 @@
 
 use std::{fs, io}; // OS crate
 use std::path::{Path, PathBuf}; // File path crate
-//use std::process::Command; // Allows the opening of applications
+// use std::process::Command; // Allows the opening of applications
 use std::sync::{Arc, Mutex}; // Multitasking crate
 use chrono::Local; // Gets local time information from computer
 use eframe::egui; // Allows for GUI interface
@@ -69,6 +69,11 @@ fn create_directory(base_dir: &Path, folder_name: &str) -> io::Result<PathBuf> {
     let prproj = main.join("Save").join(prproj_name);
     fs::copy(prproj_template, prproj)?;
 
+    let psd_template = Path::new(r"C:\Youtube\Effects\Premiere Presets\templates\template.psd");
+    let psd_name = format!("{}.psd", project_name[1]);
+    let psd = main.join("Photoshop").join(psd_name);
+    fs::copy(psd_template, psd)?;
+
     Ok(main)
 }
 
@@ -79,7 +84,7 @@ struct MyApp {
     status: String, // Text shown to explain what is currently happening
 
     base_path: Option<PathBuf>, // Path where new project folders are placed
-    project_path: PathBuf, // Path to new project folder createdd
+    project_path: PathBuf, // Path to new project folder created
 
     scan_status: Arc<Mutex<ScanStatus>>, // The current state of the application
     pending_create: bool, // Indicator for if the base_path 
@@ -141,8 +146,7 @@ impl MyApp {
                 self.project_path = created_path;
                 self.pending_create = false;
 
-                // let _ = Command::new("explorer").arg("/select").arg(created_path.to_string_lossy().as_ref()).spawn();
-                // let _ = Command::new(r"C:\Program Files\Adobe\Adobe Premiere Pro.exe").spawn();
+                // let _ = Command::new(r"C:\Program Files\Adobe\Adobe Premiere Pro 2025.exe").spawn();
             } 
             Err(e) => {
                 self.status = format!("Error: {}", e);
