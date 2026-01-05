@@ -14,6 +14,13 @@ enum ScanStatus {
     NotFound,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum ProjectType {
+    None,
+    Youtube,
+    School,
+}
+
 /*
 Purpose: Scans for desired base file path for the new project folder to be placed
 Args: start (Path) - What main directory is searched
@@ -45,7 +52,7 @@ Args: base_dir (Path) - file location for desired folder
       folder_name (String) - The new project's folder name in date_inputted name format
 Return: Error message if failed
 */
-fn create_directory(base_dir: &Path, folder_name: &str) -> io::Result<PathBuf> {
+fn create_directory(base_dir: &Path, folder_name: &str, subfolders: &[&str]) -> io::Result<PathBuf> {
     let main = base_dir.join(folder_name);
 
     if main.exists() {
@@ -55,24 +62,28 @@ fn create_directory(base_dir: &Path, folder_name: &str) -> io::Result<PathBuf> {
     // If there is no folder in the base_dir with folder_name, a new project foler is created
     fs::create_dir(&main)?;
 
-    let textfile_name = "ideas.txt";
-    let contents = "Video ideas:\n\nThumbnail ideas:\n\n";
-    fs::write(&main.join(textfile_name), contents)?; // Creates a .txt file to plan ideas
-
-    for sub in ["A-roll", "B-roll", "Save", "Photoshop"] {
+    for sub in subfolders {
         fs::create_dir(main.join(sub))?; // Creates subfolders
     }
 
-    let prproj_template = Path::new(r"C:\Youtube\Effects\Premiere Presets\templates\template.prproj");
-    let project_name: Vec<&str> = folder_name.split("_").collect();
-    let prproj_name = format!("{}.prproj", project_name[1]);
-    let prproj = main.join("Save").join(prproj_name);
-    fs::copy(prproj_template, prproj)?;
+    if main.join("Save").exists(){
+        let textfile_name = "ideas.txt";
+        let contents = "Video ideas:\n\nThumbnail ideas:\n\n";
+        fs::write(&main.join(textfile_name), contents)?; // Creates a .txt file to plan ideas
 
-    let psd_template = Path::new(r"C:\Youtube\Effects\Premiere Presets\templates\template.psd");
-    let psd_name = format!("{}.psd", project_name[1]);
-    let psd = main.join("Photoshop").join(psd_name);
-    fs::copy(psd_template, psd)?;
+        // Creates a premiere save file
+        let prproj_template = Path::new(r"C:\Youtube\Effects\Premiere Presets\templates\template.prproj");
+        let project_name: Vec<&str> = folder_name.split("_").collect();
+        let prproj_name = format!("{}.prproj", project_name[1]);
+        let prproj = main.join("Save").join(prproj_name);
+        fs::copy(prproj_template, prproj)?;
+
+        // Creates a photoshop save file
+        let psd_template = Path::new(r"C:\Youtube\Effects\Premiere Presets\templates\template.psd");
+        let psd_name = format!("{}.psd", project_name[1]);
+        let psd = main.join("Photoshop").join(psd_name);
+        fs::copy(psd_template, psd)?;
+    }
 
     Ok(main)
 }
@@ -85,6 +96,7 @@ struct MyApp {
 
     base_path: Option<PathBuf>, // Path where new project folders are placed
     project_path: PathBuf, // Path to new project folder created
+    project_type: ProjectType, // Indicates what type of project created
 
     scan_status: Arc<Mutex<ScanStatus>>, // The current state of the application
     pending_create: bool, // Indicator for if the base_path 
@@ -93,6 +105,12 @@ struct MyApp {
 impl Default for ScanStatus {
     fn default() -> Self {
         ScanStatus::Idle
+    }
+}
+
+impl Default for ProjectType {
+    fn default() -> Self {
+        ProjectType::None
     }
 }
 
@@ -136,11 +154,22 @@ impl MyApp {
     // Purpose: Creates new project folder
     fn finish_create_project(&mut self) {
 
+        let subfolders: &[&str] = match self.project_type {
+            ProjectType::Youtube => &["A-roll", "B-roll", "Save", "Photoshop"],
+            ProjectType::School => &["HW", "Slides", "Exam"],
+            ProjectType::None => &[],
+        };
+
         let base_dir = self.base_path.as_ref().unwrap().clone();
         let date = Local::now().format("%Y-%m-%d");
-        let final_name = format!("{}_{}", date, self.folder_name.trim());
 
-        match create_directory(&base_dir, &final_name) {
+        let final_name: String = if matches!(self.project_type, ProjectType::Youtube) {
+            format!("{}_{}", date, self.folder_name.trim())            
+        } else {
+            format!("{}", self.folder_name.trim())
+        };
+
+        match create_directory(&base_dir, &final_name, subfolders) {
             Ok(created_path) =>{
                 self.status = "Folder created successfully".to_string();
                 self.project_path = created_path;
@@ -159,6 +188,7 @@ impl MyApp {
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
 
+        // Sets functionallity for enter key based on if checking for base path or creating project
         if self.base_path.is_none(){
             if ctx.input(|i| i.key_pressed(egui::Key::Enter)) {
                 self.start_scan();
@@ -169,10 +199,12 @@ impl eframe::App for MyApp {
             }
         }
 
+        // Closes program if esc key is pressed
         if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
 
+        // 
         let scan_action = {
             let scan_status = self.scan_status.lock().unwrap();
 
@@ -196,14 +228,10 @@ impl eframe::App for MyApp {
                 }
 
                 ScanStatus::NotFound => {
-                    self.status = format!(
-                        "Folder '{}' not found in C:/",
-                        self.search_folder_name
-                    );
+                    self.status = format!("Folder '{}' not found in C:/",self.search_folder_name);
                     self.pending_create = false;
                     *self.scan_status.lock().unwrap() = ScanStatus::Idle;
                 }
-
                 _ => {}
             }
         }
@@ -234,15 +262,30 @@ impl eframe::App for MyApp {
 
                     ui.add_space(10.0);
 
-                    if ui.button("Create Folder").clicked() {
-                        self.create_project();
-                    }
+                    let create_enabled = self.project_type != ProjectType::None;
 
-                    if ui.button("Reset Project Folder").clicked() {
-                        self.project_path = PathBuf::new();
-                        self.base_path = None;
-                        self.status = "Project folder reset".to_string();
-                    }
+                    ui.horizontal(|ui| {
+                        ui.with_layout(egui::Layout::top_down(egui::Align::Center),|ui| {
+                            ui.selectable_value(&mut self.project_type, ProjectType::Youtube, "Youtube");
+                            ui.selectable_value(&mut self.project_type, ProjectType::School, "School");
+                        });
+
+                        ui.add_space(10.0);
+                        
+                        ui.with_layout(egui::Layout::top_down(egui::Align::Center),|ui| {
+
+                            if ui.add_enabled(create_enabled, egui::Button::new("Create Folder")).clicked() {
+                                self.create_project();
+                            }
+
+                            if ui.button("Reset Project Folder").clicked() {
+                                self.project_path = PathBuf::new();
+                                self.folder_name.clear();
+                                self.base_path = None;
+                                self.status = "Project folder reset".to_string();
+                            }
+                        });  
+                    });
 
                 }
 
