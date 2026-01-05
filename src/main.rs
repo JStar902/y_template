@@ -265,26 +265,34 @@ impl eframe::App for MyApp {
                     let create_enabled = self.project_type != ProjectType::None;
 
                     ui.horizontal(|ui| {
-                        ui.with_layout(egui::Layout::top_down(egui::Align::Center),|ui| {
-                            ui.selectable_value(&mut self.project_type, ProjectType::Youtube, "Youtube");
-                            ui.selectable_value(&mut self.project_type, ProjectType::School, "School");
+
+                        let height = ui.available_height();
+
+                        ui.vertical(|ui| {
+                            ui.set_min_height(height);
+                            ui.vertical_centered(|ui|{
+                                ui.selectable_value(&mut self.project_type, ProjectType::Youtube, "Youtube");
+                                ui.selectable_value(&mut self.project_type, ProjectType::School, "School");
+                            });
                         });
 
                         ui.add_space(10.0);
-                        
-                        ui.with_layout(egui::Layout::top_down(egui::Align::Center),|ui| {
 
-                            if ui.add_enabled(create_enabled, egui::Button::new("Create Folder")).clicked() {
-                                self.create_project();
-                            }
+                        ui.vertical(|ui| {
+                            ui.set_min_height(height);
+                            ui.vertical_centered(|ui|{
+                                if ui.add_enabled(create_enabled, egui::Button::new("Create Folder")).clicked() {
+                                    self.create_project();
+                                }
 
-                            if ui.button("Reset Project Folder").clicked() {
-                                self.project_path = PathBuf::new();
-                                self.folder_name.clear();
-                                self.base_path = None;
-                                self.status = "Project folder reset".to_string();
-                            }
-                        });  
+                                if ui.button("Reset Project Folder").clicked() {
+                                    self.project_path = PathBuf::new();
+                                    self.folder_name.clear();
+                                    self.base_path = None;
+                                    self.status = "Project folder reset".to_string();
+                                }
+                            });
+                        });                        
                     });
 
                 }
