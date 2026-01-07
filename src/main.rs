@@ -237,9 +237,10 @@ impl eframe::App for MyApp {
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.vertical_centered(|ui| { ui.heading("Project Folder Creator"); ui.add_space(10.0);});
-
             ui.vertical_centered(|ui| {
+
+                ui.heading("Project Folder Creator");
+                ui.add_space(10.0);
 
                 if self.base_path.is_none() {
                     ui.label("Base folder name:");
@@ -264,36 +265,27 @@ impl eframe::App for MyApp {
 
                     let create_enabled = self.project_type != ProjectType::None;
 
-                    ui.horizontal(|ui| {
+                    ui.horizontal(|ui|{
+                        ui.radio_value(&mut self.project_type, ProjectType::Youtube, "Youtube");
 
-                        let height = ui.available_height();
-
-                        ui.vertical(|ui| {
-                            ui.set_min_height(height);
-                            ui.vertical_centered(|ui|{
-                                ui.selectable_value(&mut self.project_type, ProjectType::Youtube, "Youtube");
-                                ui.selectable_value(&mut self.project_type, ProjectType::School, "School");
-                            });
-                        });
-
-                        ui.add_space(10.0);
-
-                        ui.vertical(|ui| {
-                            ui.set_min_height(height);
-                            ui.vertical_centered(|ui|{
-                                if ui.add_enabled(create_enabled, egui::Button::new("Create Folder")).clicked() {
-                                    self.create_project();
-                                }
-
-                                if ui.button("Reset Project Folder").clicked() {
-                                    self.project_path = PathBuf::new();
-                                    self.folder_name.clear();
-                                    self.base_path = None;
-                                    self.status = "Project folder reset".to_string();
-                                }
-                            });
-                        });                        
+                        if ui.add_enabled(create_enabled, egui::Button::new("Create Folder")).clicked() {
+                            self.create_project();
+                        }
                     });
+
+                    ui.add_space(10.0);
+
+                    ui.horizontal(|ui|{
+
+                        ui.radio_value(&mut self.project_type, ProjectType::School, "School");
+                        if ui.button("Reset Project Folder").clicked() {
+                            self.project_path = PathBuf::new();
+                            self.folder_name.clear();
+                            self.base_path = None;
+                            self.status = "Project folder reset".to_string();
+                        }
+                    }); 
+     
 
                 }
 
@@ -338,11 +330,13 @@ impl eframe::App for MyApp {
                });
             }
         });
+
+
     }
 }
 
 fn main() -> eframe::Result<()> {
-    //let options = eframe::NativeOptions::default();
+    // let options = eframe::NativeOptions::default();
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([500.0, 250.0])
