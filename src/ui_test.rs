@@ -67,6 +67,10 @@ fn create_directory(base_dir: &Path, folder_name: &str, subfolders: &[&str]) -> 
     }
 
     if main.join("Save").exists(){
+        let textfile_name = "ideas.txt";
+        let contents = "Video ideas:\n\nThumbnail ideas:\n\n";
+        fs::write(&main.join(textfile_name), contents)?; // Creates a .txt file to plan ideas
+
         // Creates a premiere save file
         let prproj_template = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("Assets").join("template.prproj");
         let project_name: Vec<&str> = folder_name.split("_").collect();
@@ -79,13 +83,6 @@ fn create_directory(base_dir: &Path, folder_name: &str, subfolders: &[&str]) -> 
         let psd_name = format!("{}.psd", project_name[1]);
         let psd = main.join("Photoshop").join(psd_name);
         fs::copy(psd_template, psd)?;
-
-        // Creates a photoshop save file
-        let md_template = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("Assets").join("template.md");
-        let prefix = project_name[1].get(..3).unwrap_or(&project_name[1]);
-        let md_name = format!("{}_ideas.md", prefix);
-        let md = main.join(md_name);
-        fs::copy(md_template, md)?;
     }
 
     Ok(main)
@@ -241,74 +238,68 @@ impl eframe::App for MyApp {
 
         // Main GUI interface
         egui::CentralPanel::default().show(ctx, |ui| {
-            // Heading showing title of software
             ui.vertical_centered(|ui| {
+
                 ui.heading("Project Folder Creator");
                 ui.add_space(10.0);
-            });
 
-            // If the base path is not determined, Initial window prompts for base path
-            if self.base_path.is_none() {
-                ui.vertical_centered(|ui| {
-                    ui.label("Base folder name:");
-                    ui.add(egui::TextEdit::singleline(&mut self.search_folder_name).hint_text("Enter base folder name"));
-
-                    ui.add_space(10.0);
-
-                    if ui.button("Search for Folder").clicked() {
-                        if self.search_folder_name.trim().is_empty() {
-                            self.status = "Search folder name cannot be empty".to_string();
-                        }else{
-                            self.start_scan();
-                        }
-                    }
-                });
-
-            } else {
                 // Main menu prompting user to enter new project type and folder name 
-                ui.vertical_centered(|ui|{
-                    ui.label("Project name:");
-                    ui.add(egui::TextEdit::singleline(&mut self.folder_name).hint_text("Enter project name (no date needed)"));
-                    ui.add_space(10.0);
-                });
+                ui.label("Project name:");
 
-                let create_enabled = self.project_type != ProjectType::None;
-
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::TOP), |ui|{
-                    ui.horizontal_wrapped(|ui| {
-                        ui.radio_value(&mut self.project_type, ProjectType::Youtube, "Youtube");
-                        ui.radio_value(&mut self.project_type, ProjectType::School, "School");
-
-                        ui.end_row();
-
-
-                        if ui.add_enabled(create_enabled, egui::Button::new("Create Folder")).clicked() {
-                            self.create_project();
-                        }
-
-                        if ui.button("Reset Project Folder").clicked() {
-                            self.project_path = PathBuf::new();
-                            self.folder_name.clear();
-                            self.base_path = None;
-                            self.status = "Project folder reset".to_string();
-                        }                      
-                    });          
-                });
+                ui.add(egui::TextEdit::singleline(&mut self.folder_name).hint_text("Enter project name (no date needed)"));
 
                 ui.add_space(10.0);
+            
+            });
 
-            }
+            let create_enabled = self.project_type != ProjectType::None;
 
-            ui.vertical_centered(|ui|{
+            ui.with_layout(egui::Layout::top_down_justified(egui::Align::Center), |ui| {
+                ui.horizontal_wrapped(|ui| {
+                
+                    ui.radio_value(&mut self.project_type, ProjectType::Youtube, "Youtube");
+                    ui.radio_value(&mut self.project_type, ProjectType::School, "School");
+                    ui.end_row();
+                    if ui.add_enabled(create_enabled, egui::Button::new("Create Folder")).clicked() {
+                        self.create_project();
+                    }               
+                
+                });
+                             
+            });
+
+            ui.vertical_centered(|ui| {
+                ui.radio_value(&mut self.project_type, ProjectType::Youtube, "Youtube");
+                ui.radio_value(&mut self.project_type, ProjectType::School, "School");
+                ui.end_row();
+                if ui.add_enabled(create_enabled, egui::Button::new("Create Folder")).clicked() {
+                    self.create_project();
+                }                             
+            });
+
+
+            ui.horizontal(|ui| { 
+                
+                if ui.button("Reset Project Folder").clicked() {
+                    self.project_path = PathBuf::new();
+                    self.folder_name.clear();
+                    self.base_path = None;
+                    self.status = "Project folder reset".to_string();
+                }                                
+            });
+
+            ui.vertical_centered(|ui| {
+
                 if ui.button("Exit").clicked() {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                }                
+                }
             });
+
 
             ui.add_space(15.0);
 
             if matches!(*self.scan_status.lock().unwrap(), ScanStatus::Scanning) {
-                ui.horizontal_centered(|ui| {
+                ui.vertical_centered(|ui| {
                     ui.spinner();
                     ui.label("Scanning for project folder...");
                 });
